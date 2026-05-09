@@ -40,7 +40,7 @@ if not url:
     raise SystemExit("No linux64 ChromeDriver found")
 print(url)
 PY
-    ) \
+) \
     && curl -sSL -o /tmp/chromedriver.zip "$DRIVER_URL" \
     && unzip /tmp/chromedriver.zip -d /tmp/chromedriver \
     && mv /tmp/chromedriver/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
