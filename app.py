@@ -1,6 +1,5 @@
 import os
 import re
-from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
@@ -44,6 +43,68 @@ def _find_first_result(driver: webdriver.Chrome) -> str:
     return ""
 
 
+def _find_search_input(driver: webdriver.Chrome):
+    selectors = [
+        "input[name='q']",
+        "input.search-font",
+        "input[type='search']",
+        "input.search-field",
+        "form.search-form input",
+    ]
+    for selector in selectors:
+        for element in driver.find_elements(By.CSS_SELECTOR, selector):
+            if element.is_displayed():
+                return element
+    return None
+
+
+def _open_search_input(driver: webdriver.Chrome):
+    input_el = _find_search_input(driver)
+    if input_el:
+        return input_el
+
+    toggle_selectors = [
+        "#search-icon",
+        ".search-icon",
+        "a.search-toggle",
+        "button.search-toggle",
+        ".tdb-header-search-button a",
+        "a.tdb-search-icon",
+        "button.tdb-search-icon",
+        "a[aria-label*='Search']",
+        "button[aria-label*='Search']",
+    ]
+    for selector in toggle_selectors:
+        for button in driver.find_elements(By.CSS_SELECTOR, selector):
+            try:
+                button.click()
+                WebDriverWait(driver, 5).until(
+                    lambda d: _find_search_input(d) is not None
+                )
+                input_el = _find_search_input(driver)
+                if input_el:
+                    return input_el
+            except Exception:
+                continue
+    return None
+
+
+def _perform_search(driver: webdriver.Chrome, keyword: str) -> None:
+    driver.get(NEWS_SOURCE)
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.TAG_NAME, "body"))
+    )
+    input_el = _open_search_input(driver)
+    if not input_el:
+        raise RuntimeError("Search input not found")
+    input_el.clear()
+    input_el.send_keys(keyword)
+    input_el.submit()
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.TAG_NAME, "body"))
+    )
+
+
 def _extract_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     # Try common article containers first, fallback to all paragraphs
@@ -69,11 +130,7 @@ def _summarize(text: str, max_sentences: int = 3) -> str:
 def scrape_article(keyword: str) -> dict:
     driver = _build_driver()
     try:
-        search_url = f"{NEWS_SOURCE}?s={quote_plus(keyword)}"
-        driver.get(search_url)
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
+        _perform_search(driver, keyword)
 
         first_url = _find_first_result(driver)
         if not first_url:
