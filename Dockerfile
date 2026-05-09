@@ -20,17 +20,13 @@ RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor
     && rm -rf /var/lib/apt/lists/*
 
 # Install matching ChromeDriver (Chrome for Testing)
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
-    CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1) && \
-    DRIVER_URL=$(python3 - "$CHROME_MAJOR" <<'PY'
+RUN python3 <<'PY' > /tmp/get_driver.py
 import json
 import sys
 from urllib.request import urlopen
-
-major = sys.argv[1]
-data = json.load(urlopen(
-    "https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json"
-))
+chrome_version = sys.argv[1] if len(sys.argv) > 1 else ""
+major = chrome_version.split('.')[0] if chrome_version else ""
+data = json.load(urlopen("https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json"))
 entry = data["milestones"].get(major)
 if not entry:
     raise SystemExit("No matching ChromeDriver for major version")
@@ -40,11 +36,13 @@ if not url:
     raise SystemExit("No linux64 ChromeDriver found")
 print(url)
 PY
-) && \
+
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
+    DRIVER_URL=$(python3 /tmp/get_driver.py "$CHROME_VERSION") && \
     curl -sSL -o /tmp/chromedriver.zip "$DRIVER_URL" && \
     unzip /tmp/chromedriver.zip -d /tmp/chromedriver && \
     mv /tmp/chromedriver/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
-    rm -rf /tmp/chromedriver /tmp/chromedriver.zip && \
+    rm -rf /tmp/chromedriver /tmp/chromedriver.zip /tmp/get_driver.py && \
     chmod +x /usr/local/bin/chromedriver
 
 WORKDIR /app
