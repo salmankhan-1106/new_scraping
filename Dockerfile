@@ -20,7 +20,7 @@ RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor
     && rm -rf /var/lib/apt/lists/*
 
 # Install matching ChromeDriver (Chrome for Testing)
-RUN python3 <<'PY' > /tmp/get_driver.py
+RUN cat > /tmp/get_driver.py <<'EOF'
 import json
 import sys
 from urllib.request import urlopen
@@ -35,7 +35,7 @@ url = next((d["url"] for d in downloads if d["platform"] == "linux64"), None)
 if not url:
     raise SystemExit("No linux64 ChromeDriver found")
 print(url)
-PY
+EOF
 
 RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
     DRIVER_URL=$(python3 /tmp/get_driver.py "$CHROME_VERSION") && \
